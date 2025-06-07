@@ -13,7 +13,7 @@ certManager:
   serviceAccountName: cert-manager
 
 image:
-  repository: midugh/cert-manager-designate-webhook
+  repository: romlm/cert-manager-designate-webhook
   tag: latest
   pullPolicy: IfNotPresent
 
@@ -23,6 +23,8 @@ fullnameOverride: ""
 service:
   type: ClusterIP
   port: 443
+
+existingSecretName: openstack-cri-creds
 
 resources: {}
   # We usually recommend not to specify default resources and to leave this as a conscious
