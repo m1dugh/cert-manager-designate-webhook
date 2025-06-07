@@ -100,20 +100,20 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	authOptions, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
-		return err
+		return fmt.Errorf("Could not load config : %s", err)
 	}
 	fmt.Printf("Loaded auth options\n")
 
 	client, err := config.NewProviderClient(context.Background(), authOptions)
 	if err != nil {
-		return err
+		return fmt.Errorf("Openstack provider config err : %s", err)
 	}
 
 	c.dnsClient, err = openstack.NewDNSV2(client, gophercloud.EndpointOpts{
 		Region: os.Getenv("OS_REGION_NAME"),
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("Error instantiating dnsv2 client : %s", err)
 	}
 
 	createOpts := recordsets.CreateOpts{
@@ -126,7 +126,7 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	err = recordsets.Create(context.TODO(), c.dnsClient, cfg.ZoneID, createOpts).ExtractInto(nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("Could not create record : %s", err)
 	}
 
 	return nil
@@ -152,17 +152,17 @@ func (c *designateSolver) CleanUp(ch *v1alpha1.ChallengeRequest) error {
 
 	pages, err := recordsets.ListByZone(c.dnsClient, cfg.ZoneID, listOptions).AllPages(context.TODO())
 	if err != nil {
-		return err
+		return fmt.Errorf("Could not list records by zone : %s", err)
 	}
 
 	allRecords, err := recordsets.ExtractRecordSets(pages)
 	if err != nil {
-		return err
+		return fmt.Errorf("Error extracting pages : %s", err)
 	}
 
 	for _, rec := range allRecords {
 		if err = recordsets.Delete(context.Background(), c.dnsClient, rec.ZoneID, rec.ID).ExtractErr(); err != nil {
-			return err
+			return fmt.Errorf("Could not delete record %s in zone %s : %s", rec.ID, rec.ZoneID, err)
 		}
 	}
 
