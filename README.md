@@ -1,58 +1,64 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/cert-manager/cert-manager/d53c0b9270f8cd90d908460d69502694e1838f5f/logo/logo-small.png" height="256" width="256" alt="cert-manager project logo" />
-</p>
+# Cert Manager Designate Webhook
 
-# ACME webhook example
+A webhook for cert-manager to connect to designate dns server.
 
-The ACME issuer type supports an optional 'webhook' solver, which can be used
-to implement custom DNS01 challenge solving logic.
+## How to use ?
 
-This is useful if you need to use cert-manager with a DNS provider that is not
-officially supported in cert-manager core.
+### Installing Credentials
 
-## Why not in core?
+The credentials for the designate server must be added in a secret prior
+to chart installation.
 
-As the project & adoption has grown, there has been an influx of DNS provider
-pull requests to our core codebase. As this number has grown, the test matrix
-has become un-maintainable and so, it's not possible for us to certify that
-providers work to a sufficient level.
-
-By creating this 'interface' between cert-manager and DNS providers, we allow
-users to quickly iterate and test out new integrations, and then packaging
-those up themselves as 'extensions' to cert-manager.
-
-We can also then provide a standardised 'testing framework', or set of
-conformance tests, which allow us to validate that a DNS provider works as
-expected.
-
-## Creating your own webhook
-
-Webhook's themselves are deployed as Kubernetes API services, in order to allow
-administrators to restrict access to webhooks with Kubernetes RBAC.
-
-This is important, as otherwise it'd be possible for anyone with access to your
-webhook to complete ACME challenge validations and obtain certificates.
-
-To make the set up of these webhook's easier, we provide a template repository
-that can be used to get started quickly.
-
-### Creating your own repository
-
-### Running the test suite
-
-All DNS providers **must** run the DNS01 provider conformance testing suite,
-else they will have undetermined behaviour when used with cert-manager.
-
-**It is essential that you configure and run the test suite when creating a
-DNS01 webhook.**
-
-An example Go test file has been provided in [main_test.go](https://github.com/cert-manager/webhook-example/blob/master/main_test.go).
-
-You can run the test suite with:
+Here is an example for the secret
 
 ```bash
-$ TEST_ZONE_NAME=example.com. make test
+kubectl create secret generic openstack-custom-creds \
+    --namespace cert-manager \
+    --from-literal OS_AUTH_TYPE=v3applicationcredential \
+    --from-literal OS_AUTH_URL=<auth_url> \
+    --from-literal OS_IDENTITY_API_VERSION=3 \
+    --from-literal OS_REGION_NAME=<region> \
+    --from-literal OS_INTERFACE=<iface> \
+    --from-literal OS_APPLICATION_CREDENTIAL_ID=<cred_id> \
+    --from-literal OS_APPLICATION_CREDENTIAL_SECRET=<secret>
 ```
 
-The example file has a number of areas you must fill in and replace with your
-own options in order for tests to pass.
+These credentials come from any valid openstack openrc file
+
+### Installing chart
+
+The helm chart can then be installed in the same namespace
+
+```bash
+helm upgrade --install \
+    --namespace cert-manager \
+    ./deploy/chart \
+    --set existingSecretName openstack-custom-creds \
+    cert-manager-designate-webhook
+```
+
+### Using with issuer
+
+You can then deploy a cluster issuer or an issuer with the following manifest.
+
+Don't forget to replace `<your-designate-zone-id>` and `<secret-key-ref>` with
+proper values.
+
+```yaml
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-staging-issuer
+spec:
+  acme:
+    privateKeySecretRef:
+      name: <secret-key-ref>
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    solvers:
+    - dns01:
+        webhook:
+          config:
+            zone_id: <your-designate-zone-id>
+          groupName: acme.midugh.fr
+          solverName: designate-solver
+```
