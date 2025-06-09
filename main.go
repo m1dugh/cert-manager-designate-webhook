@@ -71,7 +71,7 @@ type designateConfig struct {
 
 	//Email           string `json:"email"`
 	//APIKeySecretRef v1alpha1.SecretKeySelector `json:"apiKeySecretRef"`
-	ZoneID			  string `json:"zone_id"`
+	ZoneID string `json:"zone_id"`
 }
 
 // Name is used as the name for this DNS solver when referencing it on the ACME
@@ -142,7 +142,7 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	rr, err := c.recordExists(ch.ResolvedFQDN, &cfg)
 	if err != nil {
-		return fmt.Errorf("Could not check if record %s exists : %s", ch.ResolvedFQDN, )
+		return fmt.Errorf("Could not check if record %s exists : %s", ch.ResolvedFQDN)
 	}
 
 	if rr != nil {
@@ -162,11 +162,11 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 	} else {
 		// create record
 		createOpts := recordsets.CreateOpts{
-			Name: ch.ResolvedFQDN,
-			Type: "TXT",
-			TTL: 600,
+			Name:        ch.ResolvedFQDN,
+			Type:        "TXT",
+			TTL:         600,
 			Description: fmt.Sprintf("The acme record for %s", ch.DNSName),
-			Records: []string{ch.Key},
+			Records:     []string{ch.Key},
 		}
 
 		err = recordsets.Create(context.TODO(), c.dnsClient, cfg.ZoneID, createOpts).Err
@@ -174,7 +174,6 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 			return fmt.Errorf("Could not create record : %s", err)
 		}
 	}
-
 
 	return nil
 }
