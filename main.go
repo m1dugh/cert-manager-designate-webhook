@@ -84,6 +84,30 @@ func (c *designateSolver) Name() string {
 	return "designate-solver"
 }
 
+func (c *designateSolver) recordExists(name string, cfg *designateConfig) (*recordsets.RecordSet, error) {
+
+	listOptions := recordsets.ListOpts{
+		Type: "TXT",
+		Name: name,
+	}
+
+	pages, err := recordsets.ListByZone(c.dnsClient, cfg.ZoneID, listOptions).AllPages(context.TODO())
+	if err != nil {
+		return nil, fmt.Errorf("Could not list records by zone : %s", err)
+	}
+
+	allRecords, err := recordsets.ExtractRecordSets(pages)
+	if err != nil {
+		return nil, fmt.Errorf("Error extracting pages : %s", err)
+	}
+
+	if len(allRecords) > 0 {
+		return &allRecords[0], nil
+	} else {
+		return nil, nil
+	}
+}
+
 // Present is responsible for actually presenting the DNS record with the
 // DNS provider.
 // This method should tolerate being called multiple times with the same value.
@@ -116,18 +140,41 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 		return fmt.Errorf("Error instantiating dnsv2 client : %s", err)
 	}
 
-	createOpts := recordsets.CreateOpts{
-		Name: ch.ResolvedFQDN,
-		Type: "TXT",
-		TTL: 600,
-		Description: fmt.Sprintf("The acme record for %s", ch.DNSName),
-		Records: []string{ch.Key},
+	rr, err := c.recordExists(ch.ResolvedFQDN, &cfg)
+	if err != nil {
+		return fmt.Errorf("Could not check if record %s exists : %s", ch.ResolvedFQDN, )
 	}
 
-	err = recordsets.Create(context.TODO(), c.dnsClient, cfg.ZoneID, createOpts).ExtractInto(nil)
-	if err != nil {
-		return fmt.Errorf("Could not create record : %s", err)
+	if rr != nil {
+		if len(rr.Records) == 1 && rr.Records[0] == ch.Key {
+			return nil
+		}
+
+		updateOpts := recordsets.UpdateOpts{
+			Records: []string{ch.Key},
+		}
+
+		err = recordsets.Update(context.TODO(), c.dnsClient, cfg.ZoneID, rr.ID, updateOpts).Err
+		if err != nil {
+			return fmt.Errorf("Could not update record : %s", err)
+		}
+
+	} else {
+		// create record
+		createOpts := recordsets.CreateOpts{
+			Name: ch.ResolvedFQDN,
+			Type: "TXT",
+			TTL: 600,
+			Description: fmt.Sprintf("The acme record for %s", ch.DNSName),
+			Records: []string{ch.Key},
+		}
+
+		err = recordsets.Create(context.TODO(), c.dnsClient, cfg.ZoneID, createOpts).Err
+		if err != nil {
+			return fmt.Errorf("Could not create record : %s", err)
+		}
 	}
+
 
 	return nil
 }
