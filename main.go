@@ -142,7 +142,7 @@ func (c *designateSolver) Present(ch *v1alpha1.ChallengeRequest) error {
 
 	rr, err := c.recordExists(ch.ResolvedFQDN, &cfg)
 	if err != nil {
-		return fmt.Errorf("Could not check if record %s exists : %s", ch.ResolvedFQDN)
+		return fmt.Errorf("Could not check if record %s exists : %s", ch.ResolvedFQDN, err)
 	}
 
 	if rr != nil {
